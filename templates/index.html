@@ -59,8 +59,24 @@
             margin-top: 20px;
         }
 
-        #results p {
-            margin: 5px 0;
+        .result-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .matched {
+            color: green;
+        }
+
+        .unmatched {
+            color: red;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
         }
 
         img.preview {
@@ -69,6 +85,10 @@
             object-fit: contain;
             border: 1px solid #ccc;
             margin-top: 10px;
+        }
+
+        .field-line {
+            margin: 5px 0;
         }
     </style>
 </head>
@@ -79,34 +99,51 @@
         <!-- Reference Template Section -->
         <div class="upload-section">
             <h3>📌 Reference Template</h3>
-            <input type="file" id="templateInput" accept="image/*" onchange="previewImage(this, 'templatePreview')">
+            <input type="file" id="templateInput" accept=".png,.jpg,.jpeg,.pdf,.docx,.txt" onchange="handleFilePreview(this, 'templatePreview', 'templateFileName')">
             <img id="templatePreview" class="preview" alt="No template selected">
+            <div id="templateFileName" class="file-name"></div>
         </div>
 
         <!-- Resume Section -->
         <div class="upload-section">
             <h3>🧾 Sample Template</h3>
-            <input type="file" id="resumeInput" accept="image/*" onchange="previewImage(this, 'resumePreview')">
+            <input type="file" id="resumeInput" accept=".png,.jpg,.jpeg,.pdf,.docx,.txt" onchange="handleFilePreview(this, 'resumePreview', 'resumeFileName')">
             <img id="resumePreview" class="preview" alt="No resume selected">
+            <div id="resumeFileName" class="file-name"></div>
+
             <button onclick="uploadFiles()">Verify</button>
             <div id="results"></div>
         </div>
     </div>
 
     <script>
-        function previewImage(input, targetId) {
+        function handleFilePreview(input, previewId, fileNameId) {
             const file = input.files[0];
-            const preview = document.getElementById(targetId);
+            const preview = document.getElementById(previewId);
+            const fileLabel = document.getElementById(fileNameId);
 
-            if (file) {
+            if (!file) {
+                preview.src = '';
+                preview.alt = 'No file selected';
+                fileLabel.textContent = '';
+                return;
+            }
+
+            const fileType = file.type;
+
+            if (fileType.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = e => {
                     preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    fileLabel.textContent = '';
                 };
                 reader.readAsDataURL(file);
             } else {
+                // Hide preview image for non-images and show file name
                 preview.src = '';
-                preview.alt = 'No image selected';
+                preview.style.display = 'none';
+                fileLabel.textContent = "Selected file: " + file.name;
             }
         }
 
@@ -115,7 +152,7 @@
             const templateFile = document.getElementById('templateInput').files[0];
 
             if (!resumeFile || !templateFile) {
-                alert("Please select both resume and reference template images.");
+                alert("Please select both resume and reference template files.");
                 return;
             }
 
@@ -130,17 +167,32 @@
 
             const data = await res.json();
             const resultsDiv = document.getElementById('results');
-
             resultsDiv.innerHTML = "<h3>Verification Results:</h3>";
 
-            if (data.results && data.results.length > 0) {
-                data.results.forEach(r => {
-                    const line = `${r.text}: ${r.match ? "✅ Matched" : "❌ Wrong Position"} (Expected: x=${r.expected_position[0]}, y=${r.expected_position[1]})`;
-                    resultsDiv.innerHTML += `<p>${line}</p>`;
-                });
-            } else {
-                resultsDiv.innerHTML += "<p>No reference fields detected in template.</p>";
+            if (data.error) {
+                resultsDiv.innerHTML += `<p style="color:red;">${data.error}</p>`;
+                return;
             }
+
+            const matched = [];
+            const unmatched = [];
+
+            data.results.forEach(r => {
+                const line = `${r.text}: ${r.match ? "✅ Matched" : "❌ Wrong Position"} (Expected: x=${r.expected_position[0]}, y=${r.expected_position[1]})`;
+                if (r.match) matched.push(line);
+                else unmatched.push(line);
+            });
+
+            resultsDiv.innerHTML += `
+                <div class="result-section matched">
+                    <h4>✔️ Matched Fields</h4>
+                    ${matched.length ? matched.map(l => `<p class="field-line">${l}</p>`).join('') : '<p>None</p>'}
+                </div>
+                <div class="result-section unmatched">
+                    <h4>❌ Not Matched Fields</h4>
+                    ${unmatched.length ? unmatched.map(l => `<p class="field-line">${l}</p>`).join('') : '<p>None</p>'}
+                </div>
+            `;
         }
     </script>
 </body>
