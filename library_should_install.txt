@@ -4,4 +4,8 @@
 4.opencv
 5. Install the tesseract software
 
+6. extract the Release-24.08.0-0.zip in :/c/program_files
+
+7.install pdf2img library - pip install pdf2image python-docx pillow
+
 6. Run the app.py file on vs code terminal

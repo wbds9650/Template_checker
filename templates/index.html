@@ -4,99 +4,28 @@
     <meta charset="UTF-8">
     <title>Template Verifier</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 30px;
-            background-color: #f4f4f4;
-        }
-
-        h2 {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .container {
-            display: flex;
-            justify-content: space-between;
-            gap: 40px;
-            flex-wrap: wrap;
-        }
-
-        .upload-section {
-            flex: 1;
-            min-width: 300px;
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-
-        .upload-section h3 {
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        input[type="file"] {
-            margin-bottom: 10px;
-        }
-
-        button {
-            padding: 10px 20px;
-            font-weight: bold;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        #results {
-            margin-top: 20px;
-        }
-
-        .result-section {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-        }
-
-        .matched {
-            color: green;
-        }
-
-        .unmatched {
-            color: red;
-        }
-
-        .file-name {
-            margin-top: 10px;
-            font-style: italic;
-            color: #666;
-        }
-
-        img.preview {
-            width: 100%;
-            max-height: 300px;
-            object-fit: contain;
-            border: 1px solid #ccc;
-            margin-top: 10px;
-        }
-
-        .field-line {
-            margin: 5px 0;
-        }
+        body { font-family: Arial, sans-serif; padding: 30px; background-color: #f4f4f4; }
+        h2 { text-align: center; margin-bottom: 40px; }
+        .container { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+        .upload-section { flex: 1; min-width: 300px; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .upload-section h3 { margin-bottom: 20px; color: #333; }
+        input[type="file"] { margin-bottom: 10px; }
+        button { padding: 10px 20px; font-weight: bold; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        #results { margin-top: 20px; }
+        .result-section { margin-top: 20px; padding: 15px; border-radius: 10px; }
+        .matched { color: green; }
+        .unmatched { color: red; }
+        .file-name { margin-top: 10px; font-style: italic; color: #666; }
+        img.preview { width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ccc; margin-top: 10px; }
+        .field-line { margin: 5px 0; }
     </style>
 </head>
 <body>
     <h2>Resume Template Verifier</h2>
 
     <div class="container">
-        <!-- Reference Template Section -->
+        <!-- Reference Template -->
         <div class="upload-section">
             <h3>📌 Reference Template</h3>
             <input type="file" id="templateInput" accept=".png,.jpg,.jpeg,.pdf,.docx,.txt" onchange="handleFilePreview(this, 'templatePreview', 'templateFileName')">
@@ -104,7 +33,7 @@
             <div id="templateFileName" class="file-name"></div>
         </div>
 
-        <!-- Resume Section -->
+        <!-- Resume -->
         <div class="upload-section">
             <h3>🧾 Sample Template</h3>
             <input type="file" id="resumeInput" accept=".png,.jpg,.jpeg,.pdf,.docx,.txt" onchange="handleFilePreview(this, 'resumePreview', 'resumeFileName')">
@@ -121,50 +50,27 @@
             const file = input.files[0];
             const preview = document.getElementById(previewId);
             const fileLabel = document.getElementById(fileNameId);
-
-            if (!file) {
-                preview.src = '';
-                preview.alt = 'No file selected';
-                fileLabel.textContent = '';
-                return;
-            }
-
+            if (!file) { preview.src = ''; preview.alt = 'No file selected'; fileLabel.textContent = ''; return; }
             const fileType = file.type;
-
             if (fileType.startsWith('image/')) {
                 const reader = new FileReader();
-                reader.onload = e => {
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
-                    fileLabel.textContent = '';
-                };
+                reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; fileLabel.textContent = ''; };
                 reader.readAsDataURL(file);
             } else {
-                // Hide preview image for non-images and show file name
-                preview.src = '';
-                preview.style.display = 'none';
-                fileLabel.textContent = "Selected file: " + file.name;
+                preview.src = ''; preview.style.display = 'none'; fileLabel.textContent = "Selected file: " + file.name;
             }
         }
 
         async function uploadFiles() {
             const resumeFile = document.getElementById('resumeInput').files[0];
             const templateFile = document.getElementById('templateInput').files[0];
-
-            if (!resumeFile || !templateFile) {
-                alert("Please select both resume and reference template files.");
-                return;
-            }
+            if (!resumeFile || !templateFile) { alert("Please select both files."); return; }
 
             const formData = new FormData();
             formData.append("resume", resumeFile);
             formData.append("template", templateFile);
 
-            const res = await fetch("/verify", {
-                method: "POST",
-                body: formData
-            });
-
+            const res = await fetch("/verify", { method: "POST", body: formData });
             const data = await res.json();
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = "<h3>Verification Results:</h3>";
@@ -174,25 +80,17 @@
                 return;
             }
 
-            const matched = [];
-            const unmatched = [];
-
+            let html = "";
             data.results.forEach(r => {
-                const line = `${r.text}: ${r.match ? "✅ Matched" : "❌ Wrong Position"} (Expected: x=${r.expected_position[0]}, y=${r.expected_position[1]})`;
-                if (r.match) matched.push(line);
-                else unmatched.push(line);
+                let color = r.status === "match" ? "green" : (r.status === "mismatch" ? "orange" : "red");
+                html += `<div style="border-bottom:1px solid #ccc; padding:8px;">
+                    <strong style="color:${color};">${r.heading.toUpperCase()} - ${r.status.toUpperCase()}</strong><br>
+                    <b>Template:</b> ${r.template_context || "N/A"}<br>
+                    <b>Resume:</b> ${r.resume_context || "N/A"}
+                </div>`;
             });
 
-            resultsDiv.innerHTML += `
-                <div class="result-section matched">
-                    <h4>✔️ Matched Fields</h4>
-                    ${matched.length ? matched.map(l => `<p class="field-line">${l}</p>`).join('') : '<p>None</p>'}
-                </div>
-                <div class="result-section unmatched">
-                    <h4>❌ Not Matched Fields</h4>
-                    ${unmatched.length ? unmatched.map(l => `<p class="field-line">${l}</p>`).join('') : '<p>None</p>'}
-                </div>
-            `;
+            resultsDiv.innerHTML += html;
         }
     </script>
 </body>
