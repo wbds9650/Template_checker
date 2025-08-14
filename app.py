@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import os
 import cv2
 import pytesseract
@@ -6,6 +6,10 @@ from pdf2image import convert_from_path
 from docx import Document
 from PIL import Image, ImageDraw, ImageFont
 import re
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'static/uploads'
@@ -13,7 +17,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# ---------------- Conversion Functions ----------------
+# -------- Conversion functions --------
 def convert_pdf_to_images(pdf_path):
     images = convert_from_path(pdf_path, dpi=300)
     image_paths = []
@@ -45,26 +49,19 @@ def convert_docx_to_image(docx_path):
     image.save(image_path)
     return [image_path]
 
-# ---------------- Heading Detection ----------------
+# -------- Heading detection --------
 def detect_headings(text):
-    """
-    Detects possible headings from OCR text without predefined keywords.
-    """
     lines = [l.strip() for l in text.split("\n") if l.strip()]
     headings = {}
     for i, line in enumerate(lines):
-        # Criteria for heading
-        if (
-            line.isupper() and len(line.split()) <= 6  # ALL CAPS short lines
-        ) or line.endswith(":") \
-        or (1 <= len(line.split()) <= 4 and line.istitle()):
-            # Get context: next 3 lines
+        if (line.isupper() and len(line.split()) <= 6) or line.endswith(":") \
+           or (1 <= len(line.split()) <= 4 and line.istitle()):
             context = " ".join(lines[i+1:i+4]).strip()
-            if line not in headings:  # avoid duplicates
+            if line not in headings:
                 headings[line] = context
     return headings
 
-# ---------------- OCR Extractor ----------------
+# -------- OCR Extractor --------
 def extract_headings_from_images(image_paths):
     all_text = []
     for img_path in image_paths:
@@ -76,7 +73,7 @@ def extract_headings_from_images(image_paths):
     full_text = "\n".join(all_text)
     return detect_headings(full_text)
 
-# ---------------- Routes ----------------
+# -------- Routes --------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -97,7 +94,6 @@ def verify_template():
     resume_file.save(resume_path)
     template_file.save(template_path)
 
-    # Convert all to images
     if resume_ext == ".pdf":
         resume_images = convert_pdf_to_images(resume_path)
     elif resume_ext == ".txt":
@@ -116,7 +112,6 @@ def verify_template():
     else:
         template_images = [template_path]
 
-    # Extract headings+context automatically
     template_headings = extract_headings_from_images(template_images)
     resume_headings = extract_headings_from_images(resume_images)
 
@@ -125,18 +120,43 @@ def verify_template():
         res_context = resume_headings.get(heading)
         if res_context is None:
             status = "missing"
+            accuracy = 0
         elif tmpl_context.strip().lower() == res_context.strip().lower():
             status = "match"
+            accuracy = 100
         else:
             status = "mismatch"
+            tmpl_words = set(tmpl_context.lower().split())
+            res_words = set(res_context.lower().split())
+            accuracy = round((len(tmpl_words & res_words) / max(len(tmpl_words), 1)) * 100, 2)
         results.append({
             "heading": heading,
             "template_context": tmpl_context,
             "resume_context": res_context,
-            "status": status
+            "status": status,
+            "accuracy": accuracy
         })
 
+    request.session_data = results  # Store for PDF generation
     return jsonify({"results": results})
+
+@app.route("/download_pdf", methods=["POST"])
+def download_pdf():
+    data = request.get_json()
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = [Paragraph("<b>Resume Verification Report</b>", styles["Title"]), Spacer(1, 20)]
+
+    for item in data["results"]:
+        elements.append(Paragraph(f"<b>{item['heading']}</b> - {item['status'].upper()} (Accuracy: {item['accuracy']}%)", styles["Heading3"]))
+        elements.append(Paragraph(f"<b>Template:</b> {item['template_context'] or 'N/A'}", styles["Normal"]))
+        elements.append(Paragraph(f"<b>Resume:</b> {item['resume_context'] or 'N/A'}", styles["Normal"]))
+        elements.append(Spacer(1, 12))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name="verification_report.pdf", mimetype="application/pdf")
 
 if __name__ == "__main__":
     app.run(debug=True)

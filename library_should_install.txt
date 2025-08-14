@@ -8,4 +8,6 @@
 
 7.install pdf2img library - pip install pdf2image python-docx pillow
 
-6. Run the app.py file on vs code terminal
+8.pip install reportlab
+
+9. Run the app.py file on vs code terminal
